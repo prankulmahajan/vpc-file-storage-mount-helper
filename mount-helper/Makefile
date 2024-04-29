@@ -9,7 +9,6 @@ DEB_ARCH := all
 RPM_ARCH := noarch
 RPM_RELEASE_NUM := 1
 
-
 BUILD_DIR := $(NAME)-$(APP_VERSION)
 MOUNT_SCRIPT := /sbin/$(NAME)
 
@@ -25,7 +24,7 @@ CHECKSUM_FILE := "$(INSTALL_TAR_FILE).sha256"
 
 MIN_PYTHON_VER := 3.4
 MIN_STRONGSWAN_VER := 5.6
-
+EPEL_RELEASE_VERSION := latest-8
 
 deb-build:
 	rm -rf $(BUILD_DIR)
@@ -97,12 +96,13 @@ clean:
 	rm -rf ./test/__pycache__
 	rm -f ./install/*.rpm
 	rm -f ./install/*.deb
+	rm -f ./install/share.conf
 	rm -rf ./install/certs
 	rm -rf ./install/dev_certs
 	mkdir ./install/certs
 	mkdir ./install/dev_certs
 	rm -f ./install/*_*.sh
-	rm -rf *.gz
+	rm -rf *.gz *.sha256
 
 _dev:
 	cp -r ./certs/dev/* ./install/certs
@@ -134,7 +134,26 @@ build-deb: clean deb-build _prod
 
 dev: clean deb-build rpm-build _dev
 
-prod: clean deb-build rpm-build _prod
+prod:
+	@echo "=== Starting production build ==="
+	@echo "# Prepare dependencies for offline installation"
+	@mkdir -p ./install/packages/ && \
+	cd ./install/packages/ && \
+	wget -O libstrongswan.deb "http://security.ubuntu.com/ubuntu/pool/main/s/strongswan/libstrongswan_5.8.2-1ubuntu3.6_amd64.deb" && \
+	wget -O strongswan-swanctl.deb "http://security.ubuntu.com/ubuntu/pool/universe/s/strongswan/strongswan-swanctl_5.8.2-1ubuntu3.6_amd64.deb" && \
+	wget -O strongswan-libcharon.deb "http://security.ubuntu.com/ubuntu/pool/main/s/strongswan/strongswan-libcharon_5.8.2-1ubuntu3.6_amd64.deb" && \
+	wget -O charon-systemd.deb "http://security.ubuntu.com/ubuntu/pool/universe/s/strongswan/charon-systemd_5.8.2-1ubuntu3.6_amd64.deb" && \
+	wget -O libnfsidmap2.deb "http://mirrors.kernel.org/ubuntu/pool/main/libn/libnfsidmap/libnfsidmap2_0.25-5.1ubuntu1_amd64.deb" && \
+	wget -O rpcbind.deb "http://mirrors.kernel.org/ubuntu/pool/main/r/rpcbind/rpcbind_1.2.5-8_amd64.deb" && \
+	wget -O nfs-common.deb "http://security.ubuntu.com/ubuntu/pool/main/n/nfs-utils/nfs-common_1.3.4-2.5ubuntu3.3_amd64.deb" && \
+	wget -O epel.rpm "https://dl.fedoraproject.org/pub/epel/epel-release-$(EPEL_RELEASE_VERSION).noarch.rpm" && \
+	wget -O strongswan.rpm "https://dl.fedoraproject.org/pub/epel/8/Everything/x86_64/Packages/s/strongswan-5.9.10-1.el8.x86_64.rpm" && \
+	wget -O nfs-utils.rpm "https://repo.almalinux.org/almalinux/8/BaseOS/x86_64/os/Packages/nfs-utils-2.3.3-59.el8.x86_64.rpm" && \
+	wget -O iptables-services.rpm "https://repo.almalinux.org/almalinux/8/BaseOS/x86_64/os/Packages/iptables-services-1.8.5-11.el8_9.x86_64.rpm" && \
+	cd ../../ 
+	@echo "=== Building mount helper package ==="
+	make clean deb-build rpm-build _prod
+	@echo "=== Production build completed ==="
 
 .PHONY : install
 .PHONY : test

@@ -110,7 +110,6 @@ set_install_app() {
     echo "Using install app: $INSTALL_APP" 
 }
 
-
 _remove_apps() { 
     apps=($@)
     $SBIN_SCRIPT -TEARDOWN_APP
@@ -118,9 +117,21 @@ _remove_apps() {
         app="${apps[$i]}"
         log "Removing package $app"
         if [[ "$app" == *.deb ]]; then
-            apt-get purge -y --auto-remove "${app%-*}"
+            app=$(basename "$app" .deb)
+            # Read preInstalled packages from system
+            if grep -q "^$app" pre_installed_packages.txt ; then
+                log "Skipping package $app for uninstallation as it is pre-installed on the system"
+                continue 2
+            fi
+            apt-get purge -y --no-auto-remove "${app}"
         elif [[ "$app" == *.rpm ]]; then
-            rpm -e --allmatches --nodeps "${app%-*}"
+            app=$(basename "$app" .rpm)
+            # Read preInstalled packages from system
+            if grep -q "^$app" pre_installed_packages.txt ; then
+                log "Skipping package $app for uninstallation as it is pre-installed on the system"
+                continue 2
+            fi
+            rpm -e --allmatches --nodeps "${app}"
         else
             if [ "$INSTALL_APP" == "apt-get" ]; then
                 apt-get purge -y --auto-remove "$app"
@@ -180,15 +191,20 @@ _install_app() {
 
 _install_apps() { 
     apps=($@)
+    # Storing all the packages which come by default on the system. This will be used in uninstalltion case.
+    dpkg -l | grep '^ii' | awk '{print $2}' > pre_installed_packages.txt
+
     for app in "${apps[@]}"; do
-        if grep -q -i "strongswan" <<< "$app"; then
+        if grep -q -i "strongswan" <<< "$app" && ! is_linux LINUX_UBUNTU && ! is_linux LINUX_RED_HAT; then
             check_available_version "$app" $MIN_STRONGSWAN_VERSION
         fi
 
         if [[ "$app" == *.deb ]]; then
+            log "Installing package $app"
             dpkg --force-all -i "$app"
         elif [[ "$app" == *.rpm ]]; then
-            rpm -i "$app" --force --nodeps
+            log "Installing package $app"
+            rpm -i "$app" --force --nodeps --nosignature
         else
             _install_app "$app" 
         fi
@@ -280,7 +296,13 @@ if is_linux LINUX_UBUNTU; then
     export DEBIAN_FRONTEND=noninteractive
     check_python3_installed 
     apt-get -y remove needrestart
-    install_apps strongswan-swanctl charon-systemd  nfs-common mount.ibmshare*.deb
+    # Use offline dependencies for IKS use case
+    source /etc/os-release
+    if [ "$VERSION_ID" = "20.04" ] && [ "$ID" = "ubuntu" ]; then
+        install_apps packages/libstrongswan*.deb packages/strongswan-libcharon*.deb packages/libnfsidmap2*.deb packages/rpcbind*.deb packages/strongswan-swanctl*.deb packages/charon-systemd*.deb packages/nfs-common*.deb mount.ibmshare*.deb
+    else
+        install_apps strongswan-swanctl charon-systemd nfs-common mount.ibmshare*.deb
+    fi
     init_mount_helper
 fi;
 
@@ -294,10 +316,16 @@ fi;
 
 if is_linux LINUX_RED_HAT; then
     check_python3_installed python3
-    if [ "$INSTALL_ARG" != "UNINSTALL" ]; then
-        yum install -y --nogpgcheck "https://dl.fedoraproject.org/pub/epel/epel-release-latest-$MAJOR_VERSION.noarch.rpm"
+    # Use offline dependencies for IKS use case
+    source /etc/os-release
+    if [ "$VERSION_ID" = "8.9" ] && [ "$ID" = "rhel" ]; then
+        install_apps packages/epel*.rpm packages/strongswan*.rpm packages/nfs-utils*.rpm packages/iptables-service*.rpm mount.ibmshare*.rpm
+    else
+        if [ "$INSTALL_ARG" != "UNINSTALL" ]; then
+            yum install -y --nogpgcheck "https://dl.fedoraproject.org/pub/epel/epel-release-latest-$MAJOR_VERSION.noarch.rpm"
+        fi
+        install_apps strongswan  nfs-utils iptables mount.ibmshare*.rpm
     fi
-    install_apps strongswan  nfs-utils iptables mount.ibmshare*.rpm
     init_mount_helper 
 fi;
 
@@ -327,7 +355,3 @@ fi;
 
 
 exit_err "IbmMountHelper Install not supported $NAME $VERSION"
-
-
-
-

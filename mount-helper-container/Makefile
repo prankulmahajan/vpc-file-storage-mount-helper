@@ -18,7 +18,7 @@ export LINT_VERSION="1.43.0"
 GOPACKAGES=$(shell go list ./... | grep -v /vendor/ | grep -v /tests)
 
 NAME := mount-helper-container
-APP_VERSION := 0.0.2
+APP_VERSION := 0.0.3
 MAINTAINER := "IKS Storage"
 DESCRIPTION := "IBM Mount-helper-container service"
 LICENSE := "IBM"

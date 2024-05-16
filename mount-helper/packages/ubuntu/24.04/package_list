@@ -1,0 +1,10 @@
+libstrongswan-extra-plugins
+libstrongswan-standard-plugins
+libstrongswan
+libcharon-extra-plugins
+libcharon-extauth-plugins
+strongswan-swanctl
+strongswan-libcharon
+watchdog
+rpcbind
+libnfsidmap1

@@ -220,7 +220,7 @@ _install_apps() {
 
         if is_linux LINUX_UBUNTU; then
             # Read preInstalled packages from system
-            if [[ $app != *"python"* && $(grep -q "^$app" $INSTALLED_PACKAGE_LIST) ]] ; then
+            if [[ $app != *"python"* || $(grep -q "^$app" $INSTALLED_PACKAGE_LIST) ]] ; then
                 log "Skipping package $app for installation as it is pre-installed on the system"
                 continue 
             fi
@@ -233,7 +233,7 @@ _install_apps() {
             dpkg --force-all -i "$PACKAGE_DIR/$app"*
         elif  is_linux LINUX_RED_HAT && ([[ $VERSION == 8.8 || $VERSION == 8.9 ]]); then
             # Read preInstalled packages from system
-            if [[ $app != *"python"* && $(grep -q "^$app" $INSTALLED_PACKAGE_LIST) ]] ; then
+            if [[ $app != *"python"* || $(grep -q "^$app" $INSTALLED_PACKAGE_LIST) ]] ; then
                 log "Skipping package $app for installation as it is pre-installed on the system"
                 continue 
             fi

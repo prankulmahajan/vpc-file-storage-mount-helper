@@ -118,6 +118,12 @@ _remove_apps() {
     for ((i=${#apps[@]}-1; i>=0; i--)); do
         app="${apps[$i]}"
         log "Removing package $app"
+
+        # Condition to check if app name consists of mount.ibmshare
+        if [[ "$app" == *"mount.ibmshare"* ]]; then
+            app="mount.ibmshare"
+        fi
+        
         if is_linux LINUX_UBUNTU; then
             # Skip uninstallation in case /etc/pre_installed_packages.txt is missing in system
             if [ ! -f "$INSTALLED_PACKAGE_LIST" ]; then

@@ -1,4 +1,4 @@
-epel
+epel-release
 strongswan-sqlite
 strongswan
 nfs-utils

@@ -41,7 +41,7 @@ exit_err () {
     exit -1
 }
 
-exit_ok() {
+exit_ok () {
     echo 
     echo "$APP_NAME: $1."
     exit 0
@@ -118,40 +118,33 @@ _remove_apps() {
     for ((i=${#apps[@]}-1; i>=0; i--)); do
         app="${apps[$i]}"
         log "Removing package $app"
-        if [[ "$app" == *.deb ]]; then
-            if is_linux LINUX_UBUNTU; then
+        if is_linux LINUX_UBUNTU; then
+            # Skip uninstallation in case /etc/pre_installed_packages.txt is missing in system
+            if [ ! -f "$INSTALLED_PACKAGE_LIST" ]; then
+                log "Skipping uninstallation of packages as file '$INSTALLED_PACKAGE_LIST' is missing..."
+                exit -1
+            fi
+            # Read preInstalled packages from system
+            if grep -q "^$app" $INSTALLED_PACKAGE_LIST ; then
+                log "Skipping package $app for uninstallation as it was pre-installed on the system"
+                continue 2
+            fi
+            apt-get purge -y --no-auto-remove "$app"
+        elif is_linux LINUX_RED_HAT; then
+            if [[ $VERSION == 8.8 || $VERSION == 8.9 ]]; then
                 # Skip uninstallation in case /etc/pre_installed_packages.txt is missing in system
                 if [ ! -f "$INSTALLED_PACKAGE_LIST" ]; then
                     log "Skipping uninstallation of packages as file '$INSTALLED_PACKAGE_LIST' is missing..."
-                    break
+                    exit -1
                 fi
-                app_name=$(echo "$app" | sed -E 's/^packages\/ubuntu-//; s/_.*//')
                 # Read preInstalled packages from system
-                if grep -q "^$app_name" $INSTALLED_PACKAGE_LIST ; then
-                    log "Skipping package $app_name for uninstallation as it was pre-installed on the system"
+                if grep -q "^$app" $INSTALLED_PACKAGE_LIST ; then
+                    log "Skipping package $app for uninstallation as it was pre-installed on the system"
                     continue 3
                 fi
-                if [[ "$app_name" == *.deb ]]; then
-                    app_name="${app_name%.deb}"
-                fi
-                apt-get purge -y --no-auto-remove "${app_name}"
+                rpm -e --allmatches --nodeps "$app"
             else
-                apt-get purge -y --auto-remove "${app%-*}"
-            fi
-        elif [[ "$app" == *.rpm ]]; then
-            if is_linux LINUX_RED_HAT; then
-                app_name=$(echo "$app" | sed -E 's/^packages\/rhel-//; s/_.*//')
-                # Read preInstalled packages from system
-                if grep -q "^$app_name" $INSTALLED_PACKAGE_LIST ; then
-                    log "Skipping package $app_name for uninstallation as it was pre-installed on the system"
-                    continue 3
-                fi
-                if [[ "$app_name" == *.rpm ]]; then
-                    app_name="${app_name%.rpm}"
-                fi
-                rpm -e --allmatches --nodeps "${app_name}"
-            else
-                rpm -e --allmatches --nodeps "${app%-*}"
+                rpm -e --allmatches --nodeps "$app"
             fi
         else
             if [ "$INSTALL_APP" == "apt-get" ]; then
@@ -227,26 +220,30 @@ _install_apps() {
 
         if is_linux LINUX_UBUNTU; then
             # Read preInstalled packages from system
-            if grep -q "^$app" $INSTALLED_PACKAGE_LIST ; then
-                log "Skipping package $app for uninstallation as it is pre-installed on the system"
+            if [[ $app != *"python"* && $(grep -q "^$app" $INSTALLED_PACKAGE_LIST) ]] ; then
+                log "Skipping package $app for installation as it is pre-installed on the system"
                 continue 
             fi
             log "Installing package $app"
-            if [[ $app == "mount.ibmshare"* ]]; then
+            if [[ $app == "mount.ibmshare"* || $app == *"python"* ]]; then
                 dpkg --force-all -i "$app"
                 continue
             fi
             PACKAGE_DIR="packages/ubuntu/$VERSION"
             dpkg --force-all -i "$PACKAGE_DIR/$app"*
-        elif  is_linux LINUX_RED_HAT; then
-            app_name=$(echo "$app" | sed -E 's/^packages\/rhel-//; s/_.*//')
+        elif  is_linux LINUX_RED_HAT && ([[ $VERSION == 8.8 || $VERSION == 8.9 ]]); then
             # Read preInstalled packages from system
-            if grep -q "^$app_name" $INSTALLED_PACKAGE_LIST ; then
-                log "Skipping package $app_name for uninstallation as it is pre-installed on the system"
+            if [[ $app != *"python"* && $(grep -q "^$app" $INSTALLED_PACKAGE_LIST) ]] ; then
+                log "Skipping package $app for installation as it is pre-installed on the system"
                 continue 
             fi
             log "Installing package $app"
-            rpm -i "$app" --force --nodeps
+            if [[ $app == "mount.ibmshare"* || $app == *"python"* ]]; then
+                rpm -i "$app" --force --nodeps
+                continue
+            fi
+            PACKAGE_DIR="packages/rhel/$VERSION"
+            rpm -i "$PACKAGE_DIR/$app"* --force --nodeps
         else
             _install_app "$app" 
         fi
@@ -269,8 +266,7 @@ wait_till_true () {
     action="$1" 
     secs=$2
     echo "Wait: $1"
-    for i in `seq 1 10`;
-    do
+    for i in `seq 1 10`; do
         eval "$action" &>/dev/null
         if [ "$?" == "0" ]; then
             return
@@ -286,9 +282,9 @@ check_python3_installed () {
     fi
 
     if is_linux LINUX_RED_HAT; then
-        PYTHON3_PACKAGE=$1
+        PYTHON3_PACKAGE=packages/rhel/$VERSION/python*.rpm
     elif is_linux LINUX_UBUNTU; then
-        PYTHON3_PACKAGE=packages/ubuntu-python3_${PYTHON3_VERSION}.deb
+        PYTHON3_PACKAGE=packages/ubuntu/$VERSION/python*.deb
     else
         PYTHON3_PACKAGE=$1
     fi
@@ -374,8 +370,30 @@ fi;
 
 if is_linux LINUX_RED_HAT; then
     check_python3_installed python3
-    install_apps packages/rhel-epel_${EPEL_RELEASE_VERSION}.rpm packages/rhel-strongswan-sqlite_${STRONGSWAN_SQLITE_VERSION}.rpm packages/rhel-strongswan_${STRONGSWAN_VERSION}.rpm packages/rhel-nfs-utils_${NFS_UTILS_VERSION}.rpm packages/rhel-iptables-services_${IPTABLES_SERVICES_VERSION}.rpm mount.ibmshare*.rpm
-    init_mount_helper 
+    if [[ $VERSION == 8.8 || $VERSION == 8.9 ]]; then
+        # Define the path to the package list file based on the Ubuntu version
+        PACKAGE_LIST_PATH="packages/rhel/$VERSION/package_list"
+
+        # Check if the package list file exists
+        if [ ! -f "$PACKAGE_LIST_PATH" ]; then
+            exit_err "Package list file '$PACKAGE_LIST_PATH' does not exist"
+        fi
+
+        # Read the package list from the file
+        packages=()
+        while IFS= read -r line; do
+            packages+=("$line")
+        done < "$PACKAGE_LIST_PATH"
+
+        # Install the packages in the defined order
+        install_apps "${packages[@]}" mount.ibmshare*.rpm
+        init_mount_helper 
+    else
+        if [ "$INSTALL_ARG" != "UNINSTALL" ]; then
+            yum install -y --nogpgcheck "https://dl.fedoraproject.org/pub/epel/epel-release-latest-$MAJOR_VERSION.noarch.rpm"
+        fi
+        install_apps strongswan  nfs-utils iptables mount.ibmshare*.rpm
+    fi
 fi;
 
 if is_linux LINUX_CENTOS; then

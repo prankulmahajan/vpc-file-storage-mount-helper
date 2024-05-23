@@ -123,7 +123,7 @@ _remove_apps() {
         if [[ "$app" == *"mount.ibmshare"* ]]; then
             app="mount.ibmshare"
         fi
-        
+
         if is_linux LINUX_UBUNTU; then
             # Skip uninstallation in case /etc/pre_installed_packages.txt is missing in system
             if [ ! -f "$INSTALLED_PACKAGE_LIST" ]; then
@@ -226,7 +226,7 @@ _install_apps() {
 
         if is_linux LINUX_UBUNTU; then
             # Read preInstalled packages from system
-            if [[ $app != *"python"* || $(grep -q "^$app" $INSTALLED_PACKAGE_LIST) ]] ; then
+            if [[ $app != *"python"* && $(grep -q "^$app" $INSTALLED_PACKAGE_LIST; echo $?) -eq 0 ]] ; then
                 log "Skipping package $app for installation as it is pre-installed on the system"
                 continue 
             fi
@@ -239,7 +239,7 @@ _install_apps() {
             dpkg --force-all -i "$PACKAGE_DIR/$app"*
         elif  is_linux LINUX_RED_HAT && ([[ $VERSION == 8.8 || $VERSION == 8.9 ]]); then
             # Read preInstalled packages from system
-            if [[ $app != *"python"* || $(grep -q "^$app" $INSTALLED_PACKAGE_LIST) ]] ; then
+            if [[ $app != *"python"* && $(grep -q "^$app" $INSTALLED_PACKAGE_LIST; echo $?) -eq 0 ]] ; then
                 log "Skipping package $app for installation as it is pre-installed on the system"
                 continue 
             fi

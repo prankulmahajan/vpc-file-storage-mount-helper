@@ -172,7 +172,7 @@ check_linux_version () {
 }
 
 check_tls_supported_linux_verion() {
-    if { is_linux LINUX_UBUNTU &&  [[ "$VERSION" == 24.04 || "$VERSION" == 26.04 ]]; } || { is_linux LINUX_RED_HAT && [[ "$VERSION" == 9.4 ]]; } || { is_linux LINUX_ROCKY && [[ "$VERSION" == 9.4 ]]; }; then
+    if { is_linux LINUX_UBUNTU &&  [[ "$VERSION" == 24.04 ]]; } || { is_linux LINUX_RED_HAT && [[ "$VERSION" == 9.4 ]]; } || { is_linux LINUX_ROCKY && [[ "$VERSION" == 9.4 ]]; }; then
         log "Linux($NAME) Version($VERSION) supports TLS"
     else
         exit_err "TLS is not supported on this OS version"
@@ -687,7 +687,7 @@ disable_metadata () {
 install_tls_certificates() {
 
     CERT_PATH="$1"
-    if is_linux LINUX_UBUNTU &&  [[ "$VERSION" == 24.04 || "$VERSION" == 26.04 ]]; then
+    if is_linux LINUX_UBUNTU &&  [[ "$VERSION" == 24.04 ]]; then
         TLS_CERT_PATH="/usr/local/share/ca-certificates"
         cp "$CERT_PATH"/* "$TLS_CERT_PATH/"
         if [ $? -eq 0 ]; then

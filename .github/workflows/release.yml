@@ -22,7 +22,9 @@ jobs:
 
     - name: Install Strongswan For Testing IPSec Service In Unit Tests
       if: ${{ matrix.package_dir == 'mount-helper' }}
-      run: sudo apt install charon-systemd
+      run: |
+          sudo apt-get update
+          sudo apt-get install -y charon-systemd
 
     - name: Run Unit Tests for mount helper
       if: ${{ matrix.package_dir == 'mount-helper' }}
@@ -89,6 +91,7 @@ jobs:
           - Added offline packages support for RHEL 9.5
           - Supporting PPC for RHEL 9.4
           - Added the root and int certs for CHE 
+          - Add support for stunnel
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v2
 

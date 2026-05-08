@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2024- IBM Inc. All rights reserved
+ * Copyright 2026- IBM Inc. All rights reserved
  * SPDX-License-Identifier: Apache2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,8 +40,13 @@ func init() {
 
 var (
 	logger     *zap.Logger
-	socketDir  = "/var/lib/"
+	socketDir  = "/run/ibm-vpc-file-csi/"
 	socketPath = socketDir + "ibmshare.sock"
+)
+
+const (
+	TransitEncryptionIPSec   = "ipsec"
+	TransitEncryptionStunnel = "stunnel"
 )
 
 // SystemOperation is an interface for system operations like mount and unmount.
@@ -76,6 +81,11 @@ func setUpLogger() *zap.Logger {
 }
 
 func main() {
+	// Ensure the socket directory exists
+	if err := os.MkdirAll(socketDir, 0755); err != nil {
+		logger.Fatal("Failed to create socket directory:", zap.Error(err))
+	}
+
 	// Always create fresh socket file
 	os.Remove(socketPath)
 
@@ -126,10 +136,11 @@ func mountHelperContainerStatus(c *gin.Context) {
 func handleMounting(sysOp SystemOperation) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var request struct {
-			MountPath  string `json:"mountPath"`
-			TargetPath string `json:"targetPath"`
-			FsType     string `json:"fsType"`
-			RequestID  string `json:"requestID"`
+			MountPath         string `json:"mountPath"`
+			TargetPath        string `json:"targetPath"`
+			FsType            string `json:"fsType"`
+			TransitEncryption string `json:"transitEncryption"` // Accepted values: ipsec, stunnel
+			RequestID         string `json:"requestID"`
 		}
 
 		if err := c.BindJSON(&request); err != nil {
@@ -138,26 +149,35 @@ func handleMounting(sysOp SystemOperation) gin.HandlerFunc {
 			return
 		}
 
-		logger.Info("New mount request with values: ", zap.String("RequestID:", request.RequestID), zap.String("Source mount Path:", request.MountPath), zap.String("Target Path:", request.TargetPath))
+		logger.Info("New mount request", zap.String("requestID", request.RequestID), zap.String("sourceMountPath", request.MountPath), zap.String("targetPath", request.TargetPath))
 
-		// execute mount command
-		options := "mount -t " + request.FsType + " -o secure=true " + request.MountPath + " " + request.TargetPath + " -v"
+		var mountOption string
 
-		logger.Info("Command to execute is: ", zap.String("Command:", options))
-
-		output, err := sysOp.Execute("mount", "-t", request.FsType, "-o", "secure=true", request.MountPath, request.TargetPath, "-v")
-		if err != nil {
-			logger.Error("Mounting failed with error: ", zap.Error(err))
-			logger.Error("Command output: ", zap.String("output", output))
-			response := gin.H{
-				"MountExitCode": err.Error(),
-				"Description":   output,
-			}
-			c.JSON(http.StatusInternalServerError, response)
+		switch request.TransitEncryption {
+		case TransitEncryptionIPSec:
+			mountOption = "secure=true"
+		case TransitEncryptionStunnel:
+			mountOption = "stunnel"
+		default:
+			logger.Error("Invalid transit encryption value provided: ", zap.String("transitEncryption", request.TransitEncryption))
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid transit encryption value"})
 			return
 		}
 
-		logger.Info("Command output: ", zap.String("", output))
+		logger.Info("Using transit encryption", zap.String("transitEncryption", request.TransitEncryption), zap.String("mountOption", mountOption))
+
+		output, err := sysOp.Execute("mount", "-t", request.FsType, "-o", mountOption, request.MountPath, request.TargetPath, "-v")
+
+		if err != nil {
+			logger.Error("Mounting failed", zap.Error(err), zap.String("output", output))
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"MountExitCode": err.Error(),
+				"Description":   output,
+			})
+			return
+		}
+
+		logger.Info("Command output: ", zap.String("output", output))
 		c.JSON(http.StatusOK, gin.H{"message": "Request processed successfully"})
 	}
 }

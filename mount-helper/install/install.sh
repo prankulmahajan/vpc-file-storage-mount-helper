@@ -24,10 +24,6 @@ LINUX_INSTALL_APP=""
 INSTALL_APP="Unknown"
 NAME=$(grep -oP '(?<=^NAME=).+' /etc/os-release | tr -d '"')
 VERSION=$(grep -oP '(?<=^VERSION_ID=).+' /etc/os-release | tr -d '"')
-ARCH="$(uname -m)"
-MAJOR_VERSION=${VERSION%.*}
-INSTALLED_PACKAGE_LIST="/etc/pre_installed_packages.txt"
-DOWNLOADED_RHEL_PACKAGE_PATH="packages/rhel/$VERSION"
 
 #              Name              Min Version    Install
 LINUX_UBUNTU=("Ubuntu"           "18"           "$APT")
@@ -38,6 +34,19 @@ LINUX_FEDORA=("Fedora Linux"     $NA            $NA)
 LINUX_SUSE=("SLES"               "12"           "$ZYP")
 LINUX_RED_HAT_COREOS=("Red Hat Enterprise Linux CoreOS" "4" "$OSTREE")
 LINUX_RED_HAT=("Red Hat Enterprise Linux" "7" "$YUM")
+
+# Older RHCOS releases expose OpenShift version in VERSION_ID
+# and actual RHEL version is in RHEL_VERSION.
+RHEL_VERSION_VALUE=$(grep -oP '(?<=^RHEL_VERSION=).+' /etc/os-release | tr -d '"' || true)
+
+if [[ "$NAME" == "${LINUX_RED_HAT_COREOS[0]}" && -n "$RHEL_VERSION_VALUE" ]]; then
+    VERSION="$RHEL_VERSION_VALUE"
+fi
+
+ARCH="$(uname -m)"
+MAJOR_VERSION=${VERSION%.*}
+INSTALLED_PACKAGE_LIST="/etc/pre_installed_packages.txt"
+DOWNLOADED_RHEL_PACKAGE_PATH="packages/rhel/$VERSION"
 
 declare -A region_map=(
     ["dal"]="us-south"

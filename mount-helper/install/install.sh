@@ -579,11 +579,12 @@ _install_apps() {
             log "Installing package $app"
             if [[ $app == mount.ibmshare* ]]; then
                 if [[ "$INSTALL_ARG" == "--update" || "$INSTALL_ARG" == "--update-stage" ]]; then
-                    rpm-ostree upgrade "$app" 
+                    log "Updating existing package $app"
+                    rpm-ostree uninstall mount.ibmshare --install "$app"
                 else
-                    rpm-ostree install -y --idempotent "$app" 
+                    rpm-ostree install -y --idempotent "$app"
                 fi
-            continue
+                continue
             fi
             if [[ $app == *"python"* ]]; then
                 rpm-ostree install -y --idempotent "$app" 
@@ -1140,6 +1141,12 @@ if is_linux LINUX_RED_HAT_COREOS; then
             while IFS= read -r line; do
                 packages+=("$line")
             done < "$PACKAGE_LIST_PATH"
+
+            # Disable EPEL repos if present - Required for Secure By Default clusters
+            if ls /etc/yum.repos.d/epel*.repo 1>/dev/null 2>&1; then
+                sed -i 's/enabled=1/enabled=0/' /etc/yum.repos.d/epel*.repo
+                log "Disabled EPEL repos for Secure By Default cluster"
+            fi
 
             # Install the packages in the defined order
             install_apps "${packages[@]}" mount.ibmshare*.rpm

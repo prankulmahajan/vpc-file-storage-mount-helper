@@ -84,11 +84,10 @@ jobs:
           /home/runner/work/vpc-file-storage-mount-helper/vpc-file-storage-mount-helper/${{ matrix.package_dir }}/mount.ibmshare-latest.tar.gz.sha256
           /home/runner/work/vpc-file-storage-mount-helper/vpc-file-storage-mount-helper/mount-helper-container/mount-helper-container-latest.tar.gz
           /home/runner/work/vpc-file-storage-mount-helper/vpc-file-storage-mount-helper/mount-helper-container/mount-helper-container-latest.tar.gz.sha256
-        tag_name: 0.2.6
-        name: 0.2.6
+        tag_name: 0.2.7
+        name: 0.2.7
         body: |
-          - Fixed CoreOS package version detection for older releases in mount-helper install script.
-    - name: Initialize CodeQL
+          - Fixed an issue where the installation of the mount helper package would fail in case of update.
       uses: github/codeql-action/init@v2
 
     - name: Perform CodeQL Analysis Mount Helper Code

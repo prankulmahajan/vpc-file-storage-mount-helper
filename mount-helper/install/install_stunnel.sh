@@ -153,6 +153,19 @@ install_stunnel_ubuntu_debian() {
     . /etc/os-release
 
     log "enter install_stunnel_ubuntu_debian"
+
+    # On Ubuntu 26.04+, strongswan 6.0.x declares charon-systemd and
+    # strongswan-charon as mutually exclusive (Conflicts). If both end up
+    # installed simultaneously the system is in a broken state and apt will
+    # refuse to proceed. In that case remove charon-systemd (the less
+    # commonly needed one) to restore a consistent state, then let
+    # apt --fix-broken clean up before continuing.
+    if dpkg -s charon-systemd &>/dev/null && dpkg -s strongswan-charon &>/dev/null; then
+        log "Both charon-systemd and strongswan-charon are installed (conflict) — fix broken install"
+	    sudo apt-get -y update
+        sudo apt-get -y --fix-broken install || true
+    fi
+
     if is_ppc; then
         sudo apt-get update
         sudo apt-get install -y stunnel4
